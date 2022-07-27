@@ -16,6 +16,15 @@ struct Main: View {
     var body: some View {
         VStack {
             Spacer()
+            Button {
+                photoVM.makeAPICalls.toggle()
+            } label: {
+                HStack {
+                    Image(systemName: photoVM.makeAPICalls ? "record.circle" : "circle")
+                    Text("Make API Calls")
+                }
+            }
+            .padding()
             RandomImageWheel()
             RandomImageFetcher()
             Spacer()
@@ -85,8 +94,9 @@ struct Main: View {
         VStack {
             Button {
                 DispatchQueue.main.async {
-                    photoVM.fetchRandomPhotos()
-                    photoVM.changeCurrentPhoto(currentWheelValue: wheelVM.currentValue)
+                    photoVM.fetchRandomPhotos() {
+                        photoVM.changeCurrentPhoto(currentWheelValue: wheelVM.currentValue)
+                    }
                 }
             } label: {
                 ZStack {

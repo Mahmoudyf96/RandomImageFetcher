@@ -22,10 +22,12 @@ class PhotoViewModel: ObservableObject {
     
     // API Fetching
     @Published var apiBusy: Bool = false
+    @Published var makeAPICalls: Bool = false
     
     // Random Number of Photos
     @Published var numOfPhotos: Int = 10
     @Published var randomSplit: Int = 0
+    
     
     // Combine
     var cancellables = Set<AnyCancellable>()
@@ -75,7 +77,7 @@ class PhotoViewModel: ObservableObject {
         }
     }
     
-    func fetchRandomPhotos() {
+    func fetchRandomPhotos(completion: @escaping () -> Void) {
         self.photos = []
         self.numOfPhotos = Int.random(in: 10...20)
         self.photoBusy = true
@@ -85,16 +87,27 @@ class PhotoViewModel: ObservableObject {
         let apiCount = numOfPhotos - randomSplit
         
         DispatchQueue.main.async {
-            self.fetchAPILinks(count: apiCount)
-            self.fetchPhotos(count: self.randomSplit)
+            if self.makeAPICalls {
+                self.fetchAPILinks(count: apiCount) {
+                    self.fetchPhotos(count: self.randomSplit) {
+                        completion()
+                        
+                        print("Total Fetched Photos: \(self.numOfPhotos)")
+                        print("Fetched \(apiCount) from API")
+                        print("Fetched \(self.randomSplit) from camera roll")
+                    }
+                }
+            } else {
+                self.fetchPhotos(count: self.numOfPhotos) {
+                    completion()
+                    
+                    print("Fetched \(self.numOfPhotos) from camera roll")
+                }
+            }
         }
-        
-        print("Total Fetched Photos: \(self.numOfPhotos)")
-        print("Fetched \(apiCount) from API")
-        print("Fetched \(self.randomSplit) from camera roll")
     }
     
-    func fetchPhotos(count: Int) {
+    func fetchPhotos(count: Int, completion: @escaping () -> Void) {
         // Fetch Photo Setup
         let imgManager = PHImageManager.default()
         let requestOptions = PHImageRequestOptions()
@@ -116,7 +129,34 @@ class PhotoViewModel: ObservableObject {
                             self.photoProgress += 1.0
                             if self.photoProgress == Double(self.numOfPhotos) {
                                 self.photoProgress = 0
-                                self.photoBusy = false
+                                if self.makeAPICalls {
+                                    self.photoBusy = false
+                                } else {
+                                    self.photoBusy = false
+                                    self.apiBusy = false
+                                }
+                                completion()
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            for _ in 0 ..< fetchResult.count {
+                imgManager.requestImage(for: fetchResult.object(at: Int.random(in: 0...fetchResult.count)), targetSize: PHImageManagerMaximumSize, contentMode: .aspectFit, options: requestOptions) { image, _ in
+                    if let image = image {
+                        DispatchQueue.main.async {
+                            self.photos.append(image)
+                            self.photoProgress += 1.0
+                            if self.photoProgress == Double(fetchResult.count) {
+                                self.photoProgress = 0
+                                if self.makeAPICalls {
+                                    self.photoBusy = false
+                                } else {
+                                    self.photoBusy = false
+                                    self.apiBusy = false
+                                }
+                                completion()
                             }
                         }
                     }
@@ -125,9 +165,9 @@ class PhotoViewModel: ObservableObject {
         }
     }
     
-    func fetchAPILinks(count: Int) {
+    func fetchAPILinks(count: Int, completion: @escaping () -> Void) {
         fetchAPIPhotos(count: count)
-            .sink(receiveCompletion: { print("Received Completion: \($0)."); self.apiBusy = false}, receiveValue: { photo in
+            .sink(receiveCompletion: { print("Received Completion: \($0)."); self.apiBusy = false; completion() }, receiveValue: { photo in
                 self.photoProgress += Double(photo.count)
                 self.photos.append(contentsOf: photo)
             })
