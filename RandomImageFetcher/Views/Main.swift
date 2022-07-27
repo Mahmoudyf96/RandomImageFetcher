@@ -24,6 +24,7 @@ struct Main: View {
                     Text("Make API Calls")
                 }
             }
+            .buttonStyle(.plain)
             .padding()
             RandomImageWheel()
             RandomImageFetcher()
